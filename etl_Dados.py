@@ -1,8 +1,9 @@
 import pandas as pd
+from openpyxl import load_workbook
 import re
 import os
 
-# -------------------- Configurações --------------------
+# --------- Configurações --------
 
 excel_file = pd.ExcelFile('vagas_e_candidaturas.xlsx') 
 
@@ -12,6 +13,7 @@ print("Dados da aba 'Listagem de Vagas':")
 lista_de_colunas = df_vagas.columns.tolist()
 print(lista_de_colunas)
 print(df_vagas)
+
 
 #Acesso as abas da planilha vagas_e_candidaturas.xlsx
 candidaturas = {}
@@ -33,19 +35,21 @@ for aba_numero in ['1 - Cientista de Dados Sênior', '2 - Engenheiro de Software
     except ValueError:
         print(f"\nAba '{aba_numero}' não encontrada.")
 
-# -------------------- Formatações --------------------
+#Tipo de dados de cada coluna
+# df_vagas['Código'] = df_vagas['Código'].astype(str) 
 
-# Função para formatar telefone
+#------------- Formatações -------------
+
+#Função para formatar telefone
 def formatar_telefone(telefone):
-    if pd.isna(telefone):
-        return ''
     
-    telefone = str(telefone)
-    telefone = re.sub(r'\D', '', telefone)  #substituições de substrings em uma string com base em um padrão de expressão ( Remove caracteres não numérico)
+    if pd.isna(telefone) or str(telefone).strip() == '' or len(str(telefone).strip()) <= 1:
+
+        return '' #substituições de substrings em uma string com base em um padrão de expressão ( Remove caracteres não numérico)
 
     if len(telefone) == 11:  
 
-        return f"({telefone[:2]}) {telefone[2:7]}-{telefone[7:]}" #formatando o número (99) 99999-9999
+        return f"({telefone[:2]}) {telefone[2:7]}-{telefone[7:]}" #formatando o número (00)00000-0000
 
     elif len(telefone) == 10: 
 
@@ -53,29 +57,38 @@ def formatar_telefone(telefone):
 
     return telefone
 
+#função para gerar e-mail, visto que o email seguia um padrão de primeiro e segundo nome...
+def gerar_email(nome_completo):
 
-# Função para formatar e-mail
-def formatar_email(email):
-    if pd.isna(email):  #testa se um valor é NaN
-        return ''
+    if pd.isna(nome_completo) or nome_completo.strip() == '':
+        return 'Nome está ausente!'
+    
+    #dividindo o nome
+    partes = nome_completo.split()
+    
+    #se existirem pega o primeiro nome
+    primeiro_nome = partes[0] if len(partes) > 0 else ''
+    segundo_nome = partes[1] if len(partes) > 1 else ''
+    
+    #gerando o e-mail depois das condições acimas corresponderem
+    return f"{primeiro_nome.lower()}{segundo_nome.lower()}@desafiodados001.com"
+    
 
-    return email.strip()
 
-
-# Função para formatar LinkedIn
+#Função para formatar LinkedIn, foi usado 'https://www.linkedin.com/in/missing' pois pode acontecer que na hora de passar os dados para o template gere erro
 def formatar_linkedin(linkedin):
-    if pd.isna(linkedin):
-        return 'missing@inhire.com.br'
-
+    
+    if pd.isnull(linkedin):
+        return 'https://www.linkedin.com/in/missing'
     return linkedin.strip()
 
-#função para transformar as tags em lista
-def formatar_tags(tag):
+#função para transformar as tags em lista, como foi especificado pelo template
+def formatar_tags(tag: str):
     if pd.isna(tag):
-        return []
+        return ''
     return [item.strip() for item in tag.split(',')]
 
-#função para formatar cidade e estado
+#função para formatar cidade e estado, nesse caso foi retirado '-' dos dados que estavam sem a cidade e estado e fica mais fácil para separar depois
 def formatar_cidade_estado(cidade_estado):
 
     cidade_estado = str(cidade_estado)
@@ -84,7 +97,7 @@ def formatar_cidade_estado(cidade_estado):
     
     return cidade_estado.replace('-', '').strip()
 
- #função para formatar colunas para datetime com tratamento de erros para NaT
+ #função para formatar colunas para datetime com tratamento de erros para NaT - há outras formas de fazer
 def formatar_datetime(df):
 
     for col in df.columns:
@@ -92,99 +105,98 @@ def formatar_datetime(df):
         try:
             df[col] = pd.to_datetime(df[col], errors='coerce')
         except:
-            pass #duvida: e a coluna não puder ser convertida para datetime, mantém como está
+            pass #duvida:se a coluna não puder ser convertida para datetime, mantém como está
 
     return df
 
-#aplicar as funções de formatação
-df_vagas['Telefone'] = df_candidaturas['Telefone'].apply(formatar_telefone)
-df_vagas['email'] = df_candidaturas['email'].apply(formatar_email)
-df_vagas['Linkedin'] = df_candidaturas['Linkedin'].apply(formatar_linkedin)
-df_vagas['tag'] = df_candidaturas['tags'].apply(formatar_tags)
-df_vagas['Localização'] = df_candidaturas['Localização'].apply(formatar_cidade_estado)  
+#--------- aplicar as funções de formatação ---------------
 
-# -------------------- Limpeza e Otimização --------------------
+df_candidaturas['Telefone'] = df_candidaturas['Telefone'].apply(formatar_telefone)
+print(df_candidaturas[['Telefone']].head())
+
+df_candidaturas['email'] = df_candidaturas['Nome Candidato'].apply(gerar_email)
+print(df_candidaturas[['email']].head())
+
+df_candidaturas['Linkedin'] = df_candidaturas['Linkedin'].apply(formatar_linkedin)
+print(df_candidaturas[['Linkedin']].median)
+
+df_candidaturas['tag'] = df_candidaturas['tags'].apply(formatar_tags)
+print(df_candidaturas[['tag']].head())
+
+df_candidaturas['Localização'] = df_candidaturas['Localização'].apply(formatar_cidade_estado)  
+print(df_candidaturas[['Localização']].head())
+
+#----------- Otimização -----------
+
+#Explicação: quando o candidato não colocou nenhuma das informações ele não é levado para o banco de talentos, como o template \
+# isso pode ser modificado, pois foi uma interpretação minha
 
 #removendo as linhas onde tanto 'email' quanto 'Linkedin' são NaN
 df = df_candidaturas.dropna(subset=['email', 'Linkedin'], how='all') 
-
-#função para gerar e-mail
-def gerar_email(first_name, second_name):
-    if pd.isna(first_name) or pd.isna(second_name):
-        return ''
-
-    return f"{first_name.lower()}.{second_name.lower()}@inhire.com.br"
-
-
-
-
-# -------------------- Função para Extrair e Transformar --------------------
-"""
-def ler_e_padronizar_planilha(caminho_arquivo):
-    try:
-        # Tenta ler a planilha (pode ser .xlsx ou .csv)
-        if caminho_arquivo.endswith('.xlsx'):
-            df = pd.read_excel(caminho_arquivo)
-        elif caminho_arquivo.endswith('.csv'):
-            df = pd.read_csv(caminho_arquivo)
-        else:
-            print(f"Arquivo não suportado: {caminho_arquivo}")
-            return None
-
-        print(f"Processando: {caminho_arquivo}")
     
-        # Padronização dos nomes das colunas (case insensitive e removendo espaços)
-        df.columns = [col.lower().replace(' ', '_') for col in df.columns]
 
-        # Cria um dicionário para mapear as colunas encontradas para os nomes esperados
-        mapping = {}
-        for coluna_esperada in candidaturas:
-            coluna_formatada = coluna_esperada.lower().replace(' ', '_')
-            for coluna_existente in df.columns:
-                if coluna_formatada in coluna_existente: # Permite variações nos nomes
-                    mapping[coluna_existente] = coluna_formatada
-                    break # Assume que encontrou a melhor correspondência
+#Salvar o DataFrame com os dados gerados em um novo arquivo, usado por mim para ver o proguesso do código
+df.to_excel('mudanças.xlsx', index=False)
 
-        # Renomeia as colunas
-        df = df.rename(columns=mapping)
+#---------- Tratando dados --------------
 
-        # Seleciona apenas as colunas que foram mapeadas para as colunas esperadas
-        df = df[list(mapping.values())]
+# def tratar_cidade_estado(cidade_e_estado):
 
-        # Garante que todas as colunas esperadas estejam presentes (com NaN se não houver)
-        for coluna_formatada in [col.lower().replace(' ', '_') for col in candidaturas]:
-            if coluna_formatada not in df.columns:
-                df[coluna_formatada] = pd.NA
+# Não vi nescessário a utilização desse codigo abaixo ainda, foi um pensamento que tive mas resolvi de outra forma
 
-        return df[ [col.lower().replace(' ', '_') for col in candidaturas] ] # Retorna na ordem esperada
+#      #dividindo o nome
+#     partes = cidade_e_estado.split()
+    
+#     #se existirem pega o primeiro nome
+#     cidade = partes[0] if len(partes) > 0 else ''
+#     print(cidade)
+#     estado = partes[1] if len(partes) > 1 else ''
 
-    except Exception as e:
-        print(f"Erro ao ler o arquivo {caminho_arquivo}: {e}")
-        return None
+#     return f"{cidade} {estado}"
 
-# -------------------- Função para Carregar --------------------
-def consolidar_dados(lista_de_dataframes, arquivo_destino):
-    if not lista_de_dataframes:
-        print("Nenhum dado para consolidar.")
-        return
 
-    df_consolidado = pd.concat(lista_de_dataframes, ignore_index=True)
+#---- código das profições ----
 
-    try:
-        df_consolidado.to_excel(arquivo_destino, index=False)
-        print(f"Dados consolidados e salvos em: {arquivo_destino}")
-    except Exception as e:
-        print(f"Erro ao salvar o arquivo consolidado: {e}")
+#estou associando duas colunas juntas
+codigos = df_vagas.groupby('Cargo')[str('Código')].agg(list).reset_index()
+print(str(codigos))
 
-# -------------------- Fluxo Principal do ETL --------------------
-if __name__ == "_main_":
-    arquivos_encontrados = [os.path.join(pasta_origem, f) for f in os.listdir(pasta_origem) if f.endswith(('.xlsx', '.csv'))]
-    dataframes = []
+#Carregar para uma planilha modelo que no caso do desafio é 'inhire_template.xlsx'
+template = 'inhire_template.xlsx'
 
-    for arquivo in arquivos_encontrados:
-        df = ler_e_padronizar_planilha(arquivo)
-        if df is not None:
-            dataframes.append(df)
+#Utilização do try para lidar com possivéis falhas evitando a interrupção abrupta
+try:
+    workbook_modelo = load_workbook(template)
+except FileNotFoundError:
+    print(f"Erro: Arquivo modelo '{template}' não encontrado.")
+    exit()
 
-    consolidar_dados(dataframes, arquivo_destino)
-"""
+try:
+
+    df_cientistaSr = pd.read_excel('vagas_e_candidaturas.xlsx', sheet_name='1 - Cientista de Dados Sênior')
+    df_engSofPl = pd.read_excel('vagas_e_candidaturas.xlsx', sheet_name='2 - Engenheiro de Software - PL')
+    df_cientistaJr = pd.read_excel('vagas_e_candidaturas.xlsx', sheet_name='3 - Cientista de Dados - Júnior')
+    df_engSoftSr = pd.read_excel('vagas_e_candidaturas.xlsx', sheet_name='4 - Engenheiro de Software - SR')
+    df_jobs = pd.read_excel('inhire_template.xlsx', sheet_name='jobs')
+    df_applications = pd.read_excel('inhire_template.xlsx', sheet_name='applications')
+
+
+#tratamento de erro na busca do arquivo e mostra onde houve o erro, no caso a aba
+except FileNotFoundError:
+    print("Erro: Arquivo não encontrado.")
+    exit()
+except KeyError as erro:
+    print(f"Erro: Aba '{erro}' não encontrada.")
+    exit()
+
+#s as colunas tiverem nomes diferentes nas abas
+df_code = pd.merge(df_vagas, df_jobs, left_on='Código', right_on='code')
+
+#coleta de colunas de forma direta e pegar com o .copy()
+aba_jobs_template = 'jobs'
+colunas_jobs_template = ['Cargo', 'Escritório', '']
+
+#preciso completar o código enfrentei muitos problemas ao longo de seu desenvolvimento, \
+#pórem digo que aprendi muita coisa me desafiando com esse desafio da InHire \
+#pretendo dar sequência nele assim que possível.
+
