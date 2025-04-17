@@ -21,5 +21,5 @@ Lembrando que, em ambos os casos, o tratamento dos dados é necessário e é ond
 
 # Link para o Repositório
 
-[GitHub com o repositório do desafio](https://github.com/thaynnayara/Desafio_InHiresitório)
+[GitHub com o repositório do desafio](https://github.com/thaynnayara/Desafio_InHire)
  
