@@ -1,4 +1,4 @@
-# Desafio 1 - Mapeamento e Transformação de Dados em Excel
+# Desafio 1 - Mapeamento e Transformação de Dados em Python usando Pandas
 
 
 [GitHub com o código do desafio 1](https://github.com/thaynnayara/Desafio_InHire/blob/main/etl_Dados.py)
